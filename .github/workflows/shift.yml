@@ -1,46 +1,35 @@
 name: SH/FT Review
 
-on:
-  pull_request_target:
-    types: [opened, synchronize, reopened]
-
-    permissions:
+permissions:
   contents: read
   issues: write
   pull-requests: write
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   review:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout
+      - name: Checkout PR branch
         uses: actions/checkout@v4
-
-      - name: Fix workspace path & debug
-        run: |
-          # Escape apostrophes in workspace
-          SAFE_WORKSPACE=$(printf "%s" "$GITHUB_WORKSPACE" | sed "s/'/'\"'\"'/g")
-          echo "SAFE_WORKSPACE=$SAFE_WORKSPACE"
-          cd "$SAFE_WORKSPACE"
-          pwd
-          ls -a
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Generate diff
         run: |
-          SAFE_WORKSPACE=$(printf "%s" "$GITHUB_WORKSPACE" | sed "s/'/'\"'\"'/g")
-          cd "$SAFE_WORKSPACE"
           git fetch origin "${{ github.event.pull_request.base.ref }}"
-          git diff origin/"${{ github.event.pull_request.base.ref }}" > diff.txt
+          git diff origin/${{ github.event.pull_request.base.ref }} > diff.txt
 
       - name: Run local Ollama model
         id: ollama
         run: |
-          SAFE_WORKSPACE=$(printf "%s" "$GITHUB_WORKSPACE" | sed "s/'/'\"'\"'/g")
-          cd "$SAFE_WORKSPACE"
           RESULT=$(curl -s http://localhost:11434/api/generate \
-            -d "{\"model\":\"llama3.2:1b-instruct-q4_K_M\",\"prompt\":\"Summarize these code changes:\n\n$(sed 's/\"/\\"/g' diff.txt)\"}" \
-          | jq -r '.response')
+            -d "{\"model\":\"llama3.2:1b-instruct-q4_K_M\", \"prompt\":\"Summarize these code changes:\n\n$(sed 's/\"/\\"/g' diff.txt)\"}" \
+            | jq -r '.response')
 
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$RESULT" >> $GITHUB_OUTPUT
