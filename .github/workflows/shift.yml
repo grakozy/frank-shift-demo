@@ -1,58 +1,34 @@
-name: SH/FT Review (Demo Mode)
-
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-
-jobs:
-  review:
-    runs-on: self-hosted
-
-    steps:
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Generate diff (optional for demo)
-        run: |
-          git fetch origin "${{ github.event.pull_request.base.ref }}"
-          git diff origin/${{ github.event.pull_request.base.ref }} > diff.txt || true
-
-      - name: Run local Ollama model (Demo Output Always)
+      - name: SHFT
         id: ollama
         run: |
           DIFF_CONTENT=$(cat diff.txt)
-          PROMPT="You are the SH/FT AI Review Agent. For demo purposes, ignore the diff and produce a short, funny, high-level PR summary. 
-          If the diff is empty, pretend the developer changed something massive. 
-          Here is the diff (if any): $DIFF_CONTENT
-          
-          Generate:
-          - One humorous line about the PR
-          - One serious-sounding 'AI review insight'
-          - A confidence score (0-100%)."
 
+          PROMPT="You are the SH/FT AI Review Agent running in demo mode.
+          Ignore the diff if empty. Generate:
+          - One humorous line about the PR
+          - One serious-sounding AI code insight
+          - A confidence score
+          
+          Diff (may be empty):
+          $DIFF_CONTENT
+          "
+
+          echo "Running prompt:"
+          echo "$PROMPT"
+
+          # Collect full streaming output from Ollama
           RESULT=$(curl -s http://localhost:11434/api/generate \
             -d "{\"model\":\"llama3.2:1b-instruct-q4_K_M\", \"prompt\":\"$PROMPT\"}" \
-            | jq -r '.response')
+            | jq -r '.. | .response? // empty' | tr -d '\n')
+
+          # Fallback if empty
+          if [ -z "$RESULT" ]; then
+            RESULT="(Demo Fallback) The SH/FT Agent is online. No real diff detected — generating simulated review summary.
+            - Joke: This PR is so clean it could pass a linting test in its sleep.
+            - Insight: Refactor opportunities detected in imaginary modules.
+            - Confidence: 92%"
+          fi
 
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$RESULT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Post summary as PR comment
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.SHIFT_PAT }}
-          script: |
-            github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: "🧠 **SH/FT Agent PR Summary (Demo Mode)**\n\n${{ steps.ollama.outputs.summary }}"
-            })
