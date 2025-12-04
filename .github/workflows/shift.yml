@@ -1,0 +1,40 @@
+name: SH/FT Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate diff
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          git diff origin/${{ github.event.pull_request.base.ref }} > diff.txt
+
+      - name: Run local Ollama model
+        id: ollama
+        run: |
+          RESULT=$(curl -s http://localhost:11434/api/generate \
+            -d "{\"model\":\"llama2\",\"prompt\":\"Summarize these code changes and highlight risks:\n\n$(sed 's/\"/\\"/g' diff.txt)\"}" \
+          | jq -r '.response')
+
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESULT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post comment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: "🧠 **SH/FT PR Summary**\n\n" + ${{ steps.ollama.outputs.summary }}
+            })
