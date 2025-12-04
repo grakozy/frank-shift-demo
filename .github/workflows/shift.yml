@@ -38,6 +38,7 @@ jobs:
       - name: Post summary as PR comment
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.SHIFT_PAT }}
           script: |
             github.rest.issues.createComment({
               owner: context.repo.owner,
