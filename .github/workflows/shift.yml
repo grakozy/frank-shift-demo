@@ -12,23 +12,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Ensure correct workspace
+        run: |
+          echo "Workspace: ${GITHUB_WORKSPACE}"
+          cd "${GITHUB_WORKSPACE}"
+          pwd
+
       - name: Generate diff
         run: |
+          cd "${GITHUB_WORKSPACE}"
           git fetch origin ${{ github.event.pull_request.base.ref }}
           git diff origin/${{ github.event.pull_request.base.ref }} > diff.txt
 
       - name: Run local Ollama model
         id: ollama
         run: |
+          cd "${GITHUB_WORKSPACE}"
           RESULT=$(curl -s http://localhost:11434/api/generate \
-            -d "{\"model\":\"llama2\",\"prompt\":\"Summarize these code changes and highlight risks:\n\n$(sed 's/\"/\\"/g' diff.txt)\"}" \
+            -d "{\"model\":\"llama3.2:1b-instruct-q4_K_M\",\"prompt\":\"Summarize these code changes and highlight risks:\n\n$(sed 's/\"/\\"/g' diff.txt)\"}" \
           | jq -r '.response')
 
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$RESULT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Post comment
+      - name: Post summary as PR comment
         uses: actions/github-script@v6
         with:
           script: |
