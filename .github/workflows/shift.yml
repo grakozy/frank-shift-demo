@@ -1,4 +1,4 @@
-name: SH/FT Review
+name: SH/FT Review (Demo Mode)
 
 permissions:
   contents: read
@@ -19,16 +19,26 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Generate diff
+      - name: Generate diff (optional for demo)
         run: |
           git fetch origin "${{ github.event.pull_request.base.ref }}"
-          git diff origin/${{ github.event.pull_request.base.ref }} > diff.txt
+          git diff origin/${{ github.event.pull_request.base.ref }} > diff.txt || true
 
-      - name: Run local Ollama model
+      - name: Run local Ollama model (Demo Output Always)
         id: ollama
         run: |
+          DIFF_CONTENT=$(cat diff.txt)
+          PROMPT="You are the SH/FT AI Review Agent. For demo purposes, ignore the diff and produce a short, funny, high-level PR summary. 
+          If the diff is empty, pretend the developer changed something massive. 
+          Here is the diff (if any): $DIFF_CONTENT
+          
+          Generate:
+          - One humorous line about the PR
+          - One serious-sounding 'AI review insight'
+          - A confidence score (0-100%)."
+
           RESULT=$(curl -s http://localhost:11434/api/generate \
-            -d "{\"model\":\"llama3.2:1b-instruct-q4_K_M\", \"prompt\":\"Tell me a joke:\n\n$(sed 's/\"/\\"/g' diff.txt)\"}" \
+            -d "{\"model\":\"llama3.2:1b-instruct-q4_K_M\", \"prompt\":\"$PROMPT\"}" \
             | jq -r '.response')
 
           echo "summary<<EOF" >> $GITHUB_OUTPUT
@@ -44,5 +54,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
-              body: "🧠 **SH/FT PR Summary**\n\n" + ${{ steps.ollama.outputs.summary }}
+              body: "🧠 **SH/FT Agent PR Summary (Demo Mode)**\n\n${{ steps.ollama.outputs.summary }}"
             })
