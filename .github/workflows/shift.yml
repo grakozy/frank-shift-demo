@@ -28,7 +28,7 @@ jobs:
         id: ollama
         run: |
           RESULT=$(curl -s http://localhost:11434/api/generate \
-            -d "{\"model\":\"llama3.2:1b-instruct-q4_K_M\", \"prompt\":\"Summarize these code changes:\n\n$(sed 's/\"/\\"/g' diff.txt)\"}" \
+            -d "{\"model\":\"llama3.2:1b-instruct-q4_K_M\", \"prompt\":\"Tell me a joke:\n\n$(sed 's/\"/\\"/g' diff.txt)\"}" \
             | jq -r '.response')
 
           echo "summary<<EOF" >> $GITHUB_OUTPUT
